@@ -5,13 +5,10 @@ const url = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
 
 if (!url) {
-  console.error('[DB] Error: TURSO_DATABASE_URL is not defined in .env');
+  throw new Error('[DB] TURSO_DATABASE_URL is not set. Add it to Netlify environment variables.');
 }
 
-const client = createClient({
-  url: url || 'file:local.db', // Fallback to local file if URL is missing
-  authToken: authToken,
-});
+const client = createClient({ url, authToken });
 
 /**
  * Initialize Cloud Database tables
