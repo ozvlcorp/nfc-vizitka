@@ -56,6 +56,9 @@ async function bootstrap() {
   }
 }
 
+// [functions]
+//   node_bundler = "esbuild"
+//   external_node_modules = ["@libsql/client", "bcryptjs"]
 // In serverless, we might need to handle initialization differently, 
 // but for simple cases, we can call bootstrap() but skip app.listen().
 bootstrap();
