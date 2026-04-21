@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b0b10">
+<title>Connecting — Админка</title>
+<style>
+:root {
+  --bg: #0b0b10;
+  --bg-2: #14141c;
+  --fg: #ffffff;
+  --fg-dim: rgba(255,255,255,0.7);
+  --fg-mute: rgba(255,255,255,0.5);
+  --card: rgba(255,255,255,0.04);
+  --card-border: rgba(255,255,255,0.08);
+  --accent: #7c5cff;
+  --accent-2: #5b8cff;
+  --danger: #ff5c5c;
+  --success: #22c55e;
+  --radius: 14px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--fg); }
+body { min-height: 100vh; }
+
+.layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+.sidebar {
+  background: var(--bg-2);
+  border-right: 1px solid var(--card-border);
+  padding: 20px 16px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+@media (max-width: 900px) {
+  .sidebar { position: relative; height: auto; border-right: none; border-bottom: 1px solid var(--card-border); }
+}
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 18px; font-weight: 700; margin-bottom: 20px;
+  padding: 8px 10px;
+}
+.logo-dot {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.sidebar-actions { display: flex; gap: 8px; margin-bottom: 16px; }
+.btn-new {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 12px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff; border: none; font-weight: 600; cursor: pointer;
+  font-size: 14px;
+}
+.btn-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--card); border: 1px solid var(--card-border);
+  color: var(--fg); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.search {
+  width: 100%; padding: 10px 12px;
+  background: var(--card); border: 1px solid var(--card-border);
+  border-radius: 10px; color: var(--fg);
+  font-size: 14px; margin-bottom: 12px;
+}
+.search:focus { outline: none; border-color: var(--accent); }
+
+.card-list { display: flex; flex-direction: column; gap: 4px; }
+.card-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.card-item:hover { background: var(--card); }
+.card-item.active { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.card-item-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; color: #fff;
+  overflow: hidden; flex-shrink: 0;
+}
+.card-item-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.card-item-body { flex: 1; min-width: 0; }
+.card-item-name { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-item-slug { font-size: 12px; color: var(--fg-mute); }
+.card-item-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+.card-item-dot.off { background: var(--fg-mute); }
+
+.sidebar-footer {
+  margin-top: 20px; padding-top: 12px;
+  border-top: 1px solid var(--card-border);
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12px; color: var(--fg-mute);
+}
+.sidebar-footer form { display: inline; }
+.sidebar-footer button {
+  background: transparent; border: none; color: var(--fg-mute); cursor: pointer;
+  font-size: 12px; padding: 4px 8px;
+}
+.sidebar-footer button:hover { color: var(--fg); }
+
+.main { padding: 24px 28px; max-width: 900px; width: 100%; margin: 0 auto; }
+@media (max-width: 700px) { .main { padding: 16px; } }
+
+.main-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px; gap: 12px; flex-wrap: wrap;
+}
+.main-title { font-size: 22px; font-weight: 700; }
+.main-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 20px;
+  background: var(--card); border: 1px solid var(--card-border);
+  font-size: 12px; color: var(--fg-dim);
+}
+.badge.on { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); border-color: transparent; }
+.badge.off { background: color-mix(in srgb, var(--fg-mute) 10%, transparent); color: var(--fg-mute); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.stat {
+  background: var(--card); border: 1px solid var(--card-border);
+  border-radius: var(--radius); padding: 14px 16px;
+}
+.stat-label { font-size: 11px; color: var(--fg-mute); text-transform: uppercase; letter-spacing: 0.08em; }
+.stat-value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+
+.form-grid { display: grid; gap: 10px; }
+.form-section {
+  background: var(--card); border: 1px solid var(--card-border);
+  border-radius: var(--radius); padding: 18px;
+  margin-bottom: 14px;
+}
+.form-section h3 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-mute); font-weight: 600; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+.field label { display: block; font-size: 12px; color: var(--fg-mute); margin-bottom: 4px; }
+.field input, .field textarea, .field select {
+  width: 100%; padding: 11px 12px;
+  background: var(--bg-2); border: 1px solid var(--card-border);
+  border-radius: 10px; color: var(--fg);
+  font-size: 14px; font-family: inherit;
+}
+.field input:focus, .field textarea:focus, .field select:focus {
+  outline: none; border-color: var(--accent);
+}
+.field textarea { resize: vertical; min-height: 70px; }
+.field-hint { font-size: 11px; color: var(--fg-mute); margin-top: 4px; }
+
+.color-picker { display: flex; align-items: center; gap: 10px; }
+.color-picker input[type="color"] { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--card-border); background: var(--bg-2); cursor: pointer; padding: 2px; }
+.color-swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+.swatch { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: border-color 0.15s; }
+.swatch:hover, .swatch.active { border-color: var(--fg); }
+
+.avatar-upload { display: flex; align-items: center; gap: 14px; }
+.avatar-preview {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 600; color: #fff;
+  overflow: hidden; flex-shrink: 0;
+}
+.avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-upload-btn {
+  padding: 8px 14px; border-radius: 10px;
+  background: var(--card); border: 1px solid var(--card-border);
+  color: var(--fg); cursor: pointer; font-size: 13px;
+}
+.avatar-upload input[type="file"] { display: none; }
+
+.actions-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.btn {
+  padding: 11px 18px; border-radius: 10px; border: none;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  font-family: inherit;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
+.btn-secondary { background: var(--card); border: 1px solid var(--card-border); color: var(--fg); }
+.btn-danger { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); }
+
+.empty {
+  text-align: center; padding: 60px 20px;
+  color: var(--fg-mute);
+}
+.empty h2 { font-size: 20px; color: var(--fg); margin-bottom: 8px; }
+
+.toast {
+  position: fixed; top: 20px; right: 20px;
+  padding: 12px 18px; background: var(--bg-2);
+  border: 1px solid var(--card-border); border-radius: 10px;
+  font-size: 14px; color: var(--fg);
+  transform: translateX(400px); transition: transform 0.25s;
+  z-index: 100;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+.toast.show { transform: translateX(0); }
+.toast.error { border-color: var(--danger); }
+.toast.success { border-color: var(--success); }
+
+.qr-wrap { display: flex; gap: 14px; align-items: center; }
+.qr-wrap img { width: 120px; height: 120px; background: #fff; border-radius: 8px; padding: 8px; }
+.qr-wrap-body { font-size: 13px; color: var(--fg-dim); }
+.qr-wrap-body code { background: var(--bg-2); padding: 2px 8px; border-radius: 6px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      Connecting
+    </div>
+
+    <div class="sidebar-actions">
+      <button class="btn-new" id="new-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Новая визитка
+      </button>
+    </div>
+
+    <input class="search" id="search" placeholder="Поиск…">
+
+    <div class="card-list" id="card-list"></div>
+
+    <div class="sidebar-footer">
+      <span>Админ</span>
+      <form action="/logout" method="post"><button type="submit">Выйти</button></form>
+    </div>
+  </aside>
+
+  <main class="main" id="main"></main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const COLORS = ['#7c5cff', '#5b8cff', '#22c55e', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#0f172a'];
+
+let cards = [];
+let currentSlug = null;
+let originalCard = null;
+
+async function fetchCards() {
+  const res = await fetch('/api/cards', { headers: { 'Accept': 'application/json' } });
+  if (res.status === 401) { location.href = '/login'; return; }
+  cards = await res.json();
+  renderList();
+}
+
+function renderList(filter = '') {
+  const list = document.getElementById('card-list');
+  const filtered = cards.filter(c => {
+    const q = filter.toLowerCase();
+    return !q || c.slug.toLowerCase().includes(q) || (c.first_name || '').toLowerCase().includes(q) || (c.last_name || '').toLowerCase().includes(q);
+  });
+  list.innerHTML = '';
+  filtered.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'card-item' + (c.slug === currentSlug ? ' active' : '');
+    el.innerHTML = `
+      <div class="card-item-avatar">${c.avatar_url ? `<img src="${c.avatar_url}">` : initials(c)}</div>
+      <div class="card-item-body">
+        <div class="card-item-name">${escape(c.first_name)} ${escape(c.last_name || '')}</div>
+        <div class="card-item-slug">/${c.slug}</div>
+      </div>
+      <div class="card-item-dot ${c.is_active ? '' : 'off'}" title="${c.is_active ? 'Активна' : 'Отключена'}"></div>
+    `;
+    el.onclick = () => openCard(c.slug);
+    list.appendChild(el);
+  });
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="padding: 14px; color: var(--fg-mute); font-size: 13px; text-align:center;">Ничего не найдено</div>';
+  }
+}
+
+function initials(c) {
+  return ((c.first_name || '?').charAt(0) + (c.last_name ? c.last_name.charAt(0) : '')).toUpperCase();
+}
+function escape(s) {
+  return String(s || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function openCard(slug) {
+  currentSlug = slug;
+  const card = cards.find(c => c.slug === slug);
+  originalCard = card;
+  renderForm(card);
+  renderList(document.getElementById('search').value);
+}
+
+function openNew() {
+  currentSlug = null;
+  originalCard = null;
+  renderForm(null);
+  renderList(document.getElementById('search').value);
+}
+
+function renderForm(card) {
+  const isNew = !card;
+  const c = card || { slug: '', first_name: '', accent_color: '#7c5cff', is_active: 1 };
+  const baseUrl = location.origin;
+
+  document.getElementById('main').innerHTML = `
+    <div class="main-header">
+      <div>
+        <div class="main-title">${isNew ? 'Новая визитка' : escape(c.first_name + ' ' + (c.last_name || ''))}</div>
+        ${!isNew ? `<div style="font-size:13px;color:var(--fg-mute);margin-top:4px;">
+          <a href="/${c.slug}" target="_blank" style="color:var(--accent);text-decoration:none;">${baseUrl}/${c.slug}</a>
+          <span class="badge ${c.is_active ? 'on' : 'off'}" style="margin-left:8px;">${c.is_active ? 'Активна' : 'Отключена'}</span>
+        </div>` : ''}
+      </div>
+      <div class="main-actions">
+        ${!isNew ? `<a class="btn btn-secondary" href="/${c.slug}" target="_blank">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Открыть
+        </a>` : ''}
+        ${!isNew ? `<a class="btn btn-secondary" href="/${c.slug}/vcard" download>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          vCard
+        </a>` : ''}
+      </div>
+    </div>
+
+    ${!isNew ? `<div class="stats">
+      <div class="stat"><div class="stat-label">Просмотры</div><div class="stat-value">${c.views || 0}</div></div>
+      <div class="stat"><div class="stat-label">Сохранения</div><div class="stat-value">${c.saves || 0}</div></div>
+      <div class="stat"><div class="stat-label">Создана</div><div class="stat-value" style="font-size:14px;">${new Date(c.created_at).toLocaleDateString('ru-RU')}</div></div>
+    </div>` : ''}
+
+    <form id="card-form" autocomplete="off">
+      <div class="form-section">
+        <h3>Основное</h3>
+        <div class="avatar-upload">
+          <div class="avatar-preview" id="avatar-preview">
+            ${c.avatar_url ? `<img src="${c.avatar_url}">` : (c.first_name ? initials(c) : '?')}
+          </div>
+          <label class="avatar-upload-btn">
+            Загрузить фото
+            <input type="file" name="avatar" accept="image/*" id="avatar-input">
+          </label>
+          ${c.avatar_url ? `<button type="button" class="btn btn-secondary" id="remove-avatar" style="padding:8px 12px;font-size:12px;">Убрать</button>` : ''}
+        </div>
+        <div style="height:12px"></div>
+        <div class="form-row">
+          <div class="field">
+            <label>Ссылка (slug) *</label>
+            <input name="slug" value="${escape(c.slug)}" ${isNew ? '' : 'readonly'} placeholder="jamshid" pattern="[a-z0-9_-]+" required>
+            <div class="field-hint">${baseUrl}/<span id="slug-preview">${escape(c.slug || 'jamshid')}</span></div>
+          </div>
+          <div class="field">
+            <label>Статус</label>
+            <select name="is_active">
+              <option value="1" ${c.is_active ? 'selected' : ''}>Активна</option>
+              <option value="0" ${!c.is_active ? 'selected' : ''}>Отключена</option>
+            </select>
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="form-row">
+          <div class="field"><label>Имя *</label><input name="first_name" value="${escape(c.first_name)}" required></div>
+          <div class="field"><label>Фамилия</label><input name="last_name" value="${escape(c.last_name)}"></div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="form-row">
+          <div class="field"><label>Должность</label><input name="position" value="${escape(c.position)}" placeholder="CEO, Дизайнер…"></div>
+          <div class="field"><label>Компания</label><input name="company" value="${escape(c.company)}"></div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="field">
+          <label>О себе (необязательно)</label>
+          <textarea name="bio" placeholder="Короткое описание">${escape(c.bio)}</textarea>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Контакты</h3>
+        <div class="form-row">
+          <div class="field"><label>Телефон</label><input name="phone" value="${escape(c.phone)}" placeholder="+998 90 123 45 67" inputmode="tel"></div>
+          <div class="field"><label>Доп. телефон</label><input name="phone_secondary" value="${escape(c.phone_secondary)}" inputmode="tel"></div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="form-row">
+          <div class="field"><label>Email</label><input name="email" type="email" value="${escape(c.email)}"></div>
+          <div class="field"><label>Сайт</label><input name="website" value="${escape(c.website)}" placeholder="https://example.com"></div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="form-row">
+          <div class="field"><label>Адрес</label><input name="address" value="${escape(c.address)}" placeholder="Ташкент, …"></div>
+          <div class="field"><label>Ссылка на карту</label><input name="map_url" value="${escape(c.map_url)}" placeholder="https://maps.google.com/…"></div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Соц.сети и мессенджеры</h3>
+        <div class="form-row">
+          <div class="field"><label>Instagram</label><input name="instagram" value="${escape(c.instagram)}" placeholder="username"></div>
+          <div class="field"><label>Telegram</label><input name="telegram" value="${escape(c.telegram)}" placeholder="username"></div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="form-row">
+          <div class="field"><label>WhatsApp</label><input name="whatsapp" value="${escape(c.whatsapp)}" placeholder="998901234567" inputmode="tel"></div>
+          <div class="field"><label>LinkedIn</label><input name="linkedin" value="${escape(c.linkedin)}" placeholder="username"></div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="form-row">
+          <div class="field"><label>Facebook</label><input name="facebook" value="${escape(c.facebook)}" placeholder="username"></div>
+          <div class="field"><label>YouTube</label><input name="youtube" value="${escape(c.youtube)}" placeholder="username"></div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="form-row">
+          <div class="field"><label>TikTok</label><input name="tiktok" value="${escape(c.tiktok)}" placeholder="username"></div>
+          <div class="field"></div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Цвет акцента</h3>
+        <div class="color-picker">
+          <input type="color" name="accent_color" value="${c.accent_color || '#7c5cff'}" id="accent-input">
+          <div class="color-swatches">
+            ${COLORS.map(col => `<div class="swatch ${col === (c.accent_color || '#7c5cff') ? 'active' : ''}" style="background:${col}" data-color="${col}"></div>`).join('')}
+          </div>
+        </div>
+      </div>
+
+      ${!isNew ? `<div class="form-section">
+        <h3>QR-код и ссылка для NFC</h3>
+        <div class="qr-wrap">
+          <img src="/${c.slug}/qr.png" alt="QR">
+          <div class="qr-wrap-body">
+            Запишите в NFC-метку или распечатайте:<br>
+            <code>${baseUrl}/${c.slug}</code>
+            <div style="margin-top:8px;">
+              <button type="button" class="btn btn-secondary" id="copy-url" style="padding:6px 12px;font-size:12px;">Скопировать</button>
+              <a class="btn btn-secondary" href="/${c.slug}/qr.png" download="qr-${c.slug}.png" style="padding:6px 12px;font-size:12px;text-decoration:none;">Скачать QR</a>
+            </div>
+          </div>
+        </div>
+      </div>` : ''}
+
+      <div class="actions-row">
+        <button type="submit" class="btn btn-primary">${isNew ? 'Создать визитку' : 'Сохранить'}</button>
+        ${!isNew ? `<button type="button" class="btn btn-danger" id="delete-btn">Удалить</button>` : ''}
+      </div>
+    </form>
+  `;
+
+  attachFormHandlers(isNew);
+}
+
+function renderEmpty() {
+  document.getElementById('main').innerHTML = `
+    <div class="empty">
+      <div style="font-size: 48px; margin-bottom: 10px;">✦</div>
+      <h2>Выберите визитку</h2>
+      <p>или создайте новую кнопкой слева</p>
+    </div>
+  `;
+}
+
+function attachFormHandlers(isNew) {
+  const form = document.getElementById('card-form');
+
+  // Slug preview
+  const slugInput = form.querySelector('[name=slug]');
+  const slugPreview = document.getElementById('slug-preview');
+  if (slugInput && slugPreview) {
+    slugInput.addEventListener('input', () => {
+      const clean = slugInput.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      slugInput.value = clean;
+      slugPreview.textContent = clean || 'jamshid';
+    });
+  }
+
+  // Цветовые свотчи
+  const accentInput = document.getElementById('accent-input');
+  document.querySelectorAll('.swatch').forEach(s => {
+    s.addEventListener('click', () => {
+      const c = s.dataset.color;
+      accentInput.value = c;
+      document.querySelectorAll('.swatch').forEach(x => x.classList.remove('active'));
+      s.classList.add('active');
+    });
+  });
+
+  // Аватар preview
+  const avInput = document.getElementById('avatar-input');
+  const avPreview = document.getElementById('avatar-preview');
+  if (avInput) {
+    avInput.addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => { avPreview.innerHTML = `<img src="${ev.target.result}">`; };
+      reader.readAsDataURL(f);
+    });
+  }
+  const remAv = document.getElementById('remove-avatar');
+  if (remAv) {
+    remAv.addEventListener('click', async () => {
+      if (!confirm('Убрать фото?')) return;
+      const fd = new FormData();
+      fd.append('avatar_url', '');
+      const res = await fetch('/api/cards/' + currentSlug, { method: 'PUT', body: fd });
+      if (res.ok) { toast('Фото удалено', 'success'); await fetchCards(); openCard(currentSlug); }
+    });
+  }
+
+  // Копирование ссылки
+  const copyBtn = document.getElementById('copy-url');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(location.origin + '/' + currentSlug);
+      toast('Ссылка скопирована', 'success');
+    });
+  }
+
+  // Удаление
+  const delBtn = document.getElementById('delete-btn');
+  if (delBtn) {
+    delBtn.addEventListener('click', async () => {
+      if (!confirm(`Удалить визитку /${currentSlug}? Это необратимо.`)) return;
+      const res = await fetch('/api/cards/' + currentSlug, { method: 'DELETE' });
+      if (res.ok) {
+        toast('Визитка удалена', 'success');
+        currentSlug = null;
+        await fetchCards();
+        renderEmpty();
+      } else {
+        toast('Ошибка удаления', 'error');
+      }
+    });
+  }
+
+  // Сабмит формы
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const url = isNew ? '/api/cards' : '/api/cards/' + currentSlug;
+    const method = isNew ? 'POST' : 'PUT';
+
+    const btn = form.querySelector('button[type=submit]');
+    btn.disabled = true;
+    btn.textContent = 'Сохранение…';
+
+    try {
+      const res = await fetch(url, { method, body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка');
+
+      toast(isNew ? 'Визитка создана' : 'Сохранено', 'success');
+      currentSlug = data.slug;
+      await fetchCards();
+      openCard(currentSlug);
+    } catch (err) {
+      toast(err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = isNew ? 'Создать визитку' : 'Сохранить';
+    }
+  });
+}
+
+function toast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.className = 'toast ' + type, 2500);
+}
+
+// ======================
+// Init
+// ======================
+document.getElementById('new-btn').addEventListener('click', openNew);
+document.getElementById('search').addEventListener('input', (e) => renderList(e.target.value));
+
+fetchCards().then(() => {
+  if (cards.length > 0) openCard(cards[0].slug);
+  else openNew();
+});
+</script>
+</body>
+</html>
