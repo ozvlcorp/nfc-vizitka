@@ -5,9 +5,9 @@
   functions = "functions"
 
 [functions]
-  # Force bundling of express
-  external_node_modules = ["express", "bcryptjs"]
   node_bundler = "esbuild"
+  # No need for external_node_modules for libsql since we moved to HTTP client
+  external_node_modules = ["bcryptjs"]
 
 # REDIRECTS: Force all non-file requests to the Express function
 # This allows /admin, /login, and /:slug to work
