@@ -27,12 +27,12 @@ async function bootstrap() {
     const login = process.env.ADMIN_LOGIN || 'admin';
     const password = process.env.ADMIN_PASSWORD || 'admin123';
     
-    const res = await db.client.execute({
+    const rowRes = await db.client.execute({
       sql: 'SELECT id FROM admins WHERE login = ?',
       args: [login]
     });
     
-    if (res.rows.length === 0) {
+    if (rowRes.rows.length === 0) {
       const hash = bcrypt.hashSync(password, 10);
       await db.client.execute({
         sql: 'INSERT INTO admins (login, password_hash) VALUES (?, ?)',
@@ -41,19 +41,27 @@ async function bootstrap() {
       console.log(`[INIT] Создан администратор: ${login} / ${password}`);
     }
 
-    app.listen(PORT, () => {
-      console.log(`\n🟣 Connecting запущен на ${BASE_URL}`);
-      console.log(`   Админка: ${BASE_URL}/admin`);
-      console.log(`   Логин:   ${login}`);
-      console.log(`   Пример:  ${BASE_URL}/jamshid\n`);
-    });
+    // Only listen if this file is run directly (local development)
+    if (require.main === module) {
+      app.listen(PORT, () => {
+        console.log(`\n🟣 Connecting запущен на ${BASE_URL}`);
+        console.log(`   Админка: ${BASE_URL}/admin`);
+        console.log(`   Логин:   ${login}`);
+        console.log(`   Пример:  ${BASE_URL}/jamshid\n`);
+      });
+    }
   } catch (err) {
     console.error('[BOOTSTRAP ERROR]', err.message);
-    process.exit(1);
+    if (require.main === module) process.exit(1);
   }
 }
 
+// In serverless, we might need to handle initialization differently, 
+// but for simple cases, we can call bootstrap() but skip app.listen().
 bootstrap();
+
+module.exports = app;
+
 
 // ======================
 // Загрузка аватарок

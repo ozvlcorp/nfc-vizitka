@@ -1,0 +1,40 @@
+[build]
+  # Public directory for static files
+  publish = "public"
+  # Folder where functions are located
+  functions = "functions"
+
+[functions]
+  # Force bundling of express
+  external_node_modules = ["express", "bcryptjs"]
+  node_bundler = "esbuild"
+
+# REDIRECTS: Force all non-file requests to the Express function
+# This allows /admin, /login, and /:slug to work
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/login"
+  to = "/.netlify/functions/api/login"
+  status = 200
+
+[[redirects]]
+  from = "/admin"
+  to = "/.netlify/functions/api/admin"
+  status = 200
+
+[[redirects]]
+  from = "/logout"
+  to = "/.netlify/functions/api/logout"
+  status = 200
+
+# Catch-all for business card slugs (e.g., /jamshid)
+# Any route that doesn't match a static file in /public will go to the function
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
