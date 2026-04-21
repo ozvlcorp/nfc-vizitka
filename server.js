@@ -56,31 +56,18 @@ async function bootstrap() {
   }
 }
 
-// [functions]
-//   node_bundler = "esbuild"
-//   external_node_modules = ["@libsql/client", "bcryptjs"]
-// In serverless, we might need to handle initialization differently, 
-// but for simple cases, we can call bootstrap() but skip app.listen().
-bootstrap();
+// Store the promise so the serverless handler can await DB init before first request
+const bootstrapDone = bootstrap();
 
 module.exports = app;
+module.exports.bootstrapDone = bootstrapDone;
 
 
 // ======================
-// Загрузка аватарок
+// Загрузка аватарок (memory storage — работает в serverless/Netlify)
 // ======================
-const UPLOAD_DIR = path.join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: UPLOAD_DIR,
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      const safe = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
-      cb(null, safe);
-    }
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ok = /image\/(jpeg|png|webp|gif)/.test(file.mimetype);
@@ -217,7 +204,9 @@ app.post('/api/cards', requireAdmin, upload.single('avatar'), async (req, res) =
     });
     if (existsRes.rows.length > 0) return res.status(409).json({ error: 'Slug уже занят' });
 
-    const avatar_url = req.file ? `/uploads/${req.file.filename}` : (data.avatar_url || null);
+    const avatar_url = req.file
+      ? `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`
+      : (data.avatar_url || null);
 
     const result = await db.client.execute({
       sql: `
@@ -275,7 +264,9 @@ app.put('/api/cards/:slug', requireAdmin, upload.single('avatar'), async (req, r
     if (!row) return res.status(404).json({ error: 'not_found' });
 
     const data = req.body;
-    const avatar_url = req.file ? `/uploads/${req.file.filename}` : (data.avatar_url !== undefined ? data.avatar_url : row.avatar_url);
+    const avatar_url = req.file
+      ? `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`
+      : (data.avatar_url !== undefined ? data.avatar_url : row.avatar_url);
 
     const is_active = data.is_active !== undefined ? (data.is_active === '1' || data.is_active === 1 || data.is_active === true ? 1 : 0) : row.is_active;
 
