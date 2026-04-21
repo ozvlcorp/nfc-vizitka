@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const express = require('express');
-const session = require('express-session');
+const session = require('cookie-session');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
@@ -92,10 +92,9 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'connecting-dev-secret-change-me',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { httpOnly: true, maxAge: 1000 * 60 * 60 * 24 * 7 } // 7 дней
+  name: 'session',
+  keys: [process.env.SESSION_SECRET || 'connecting-dev-secret-change-me'],
+  maxAge: 7 * 24 * 60 * 60 * 1000 // 7 дней
 }));
 
 // Статика (PWA, картинки, CSS)
@@ -160,7 +159,8 @@ app.post('/login', async (req, res) => {
 });
 
 app.post('/logout', (req, res) => {
-  req.session.destroy(() => res.redirect('/login'));
+  req.session = null;
+  res.redirect('/login');
 });
 
 // ======================
