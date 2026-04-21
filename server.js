@@ -91,12 +91,20 @@ app.use(session({
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Раздача шаблонов (для упрощения — чистый HTML)
+// In esbuild bundles __dirname is the bundle dir (functions/), but included_files
+// are placed one level up at the project root, so we try both paths.
+const VIEWS_DIR = [
+  path.join(__dirname, 'views'),
+  path.join(__dirname, '..', 'views'),
+].find(p => fs.existsSync(p));
+if (!VIEWS_DIR) throw new Error(`Views directory not found. Tried: ${__dirname}/views and ${__dirname}/../views`);
+
 const views = {
-  login: fs.readFileSync(path.join(__dirname, 'views', 'login.html'), 'utf8'),
-  admin: fs.readFileSync(path.join(__dirname, 'views', 'admin.html'), 'utf8'),
-  index: fs.readFileSync(path.join(__dirname, 'views', 'index.html'), 'utf8'),
-  card: fs.readFileSync(path.join(__dirname, 'views', 'card.html'), 'utf8'),
-  notFound: fs.readFileSync(path.join(__dirname, 'views', '404.html'), 'utf8'),
+  login: fs.readFileSync(path.join(VIEWS_DIR, 'login.html'), 'utf8'),
+  admin: fs.readFileSync(path.join(VIEWS_DIR, 'admin.html'), 'utf8'),
+  index: fs.readFileSync(path.join(VIEWS_DIR, 'index.html'), 'utf8'),
+  card: fs.readFileSync(path.join(VIEWS_DIR, 'card.html'), 'utf8'),
+  notFound: fs.readFileSync(path.join(VIEWS_DIR, '404.html'), 'utf8'),
 };
 
 function requireAdmin(req, res, next) {
