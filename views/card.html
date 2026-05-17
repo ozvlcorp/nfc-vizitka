@@ -405,21 +405,152 @@ h1 {
     slot.appendChild(ph);
   }
 
-  // ====== Кнопка "Сохранить контакт" — ключевой момент ======
-  // Два пути: прямая .vcf загрузка (Android/iOS) + fallback для платформ где download не работает
+  // ====== Нормализаторы соц.сетей ======
+  function extractHandle(value, hosts) {
+    if (!value) return '';
+    let v = String(value).trim();
+    if (!v) return '';
+    const lower = v.toLowerCase();
+    const looksLikeUrl = lower.startsWith('http://') || lower.startsWith('https://') ||
+      (hosts || []).some(h => lower.startsWith(h + '/') || lower.startsWith('www.' + h + '/') || lower.startsWith(h));
+    if (looksLikeUrl) {
+      let urlStr = v;
+      if (!/^https?:\/\//i.test(urlStr)) urlStr = 'https://' + urlStr;
+      try {
+        const u = new URL(urlStr);
+        const segs = u.pathname.split('/').filter(Boolean);
+        if (segs.length) return segs[segs.length - 1].replace(/^@/, '');
+        return v.replace(/^@/, '').replace(/\/+$/, '');
+      } catch (e) {}
+    }
+    return v.replace(/^@/, '').replace(/\/+$/, '');
+  }
+  function igHandle(v) { return extractHandle(v, ['instagram.com']); }
+  function tgHandle(v) { return extractHandle(v, ['t.me', 'telegram.me']); }
+  function fbHandle(v) { return extractHandle(v, ['facebook.com', 'fb.com']); }
+  function tkHandle(v) { return extractHandle(v, ['tiktok.com']).replace(/^@/, ''); }
+  function liHandle(v) {
+    if (!v) return '';
+    let s = String(v).trim();
+    if (!s) return '';
+    const lower = s.toLowerCase();
+    if (lower.startsWith('http://') || lower.startsWith('https://') || lower.includes('linkedin.com/')) {
+      let urlStr = s;
+      if (!/^https?:\/\//i.test(urlStr)) urlStr = 'https://' + urlStr;
+      try {
+        const u = new URL(urlStr);
+        const segs = u.pathname.split('/').filter(Boolean);
+        for (let i = 0; i < segs.length; i++) {
+          if (/^(in|company|pub)$/i.test(segs[i]) && segs[i + 1]) return segs[i + 1].replace(/^@/, '');
+        }
+        if (segs.length) return segs[segs.length - 1].replace(/^@/, '');
+      } catch (e) {}
+    }
+    return s.replace(/^@/, '').replace(/\/+$/, '');
+  }
+  function ytHandle(v) {
+    if (!v) return '';
+    let s = String(v).trim();
+    if (!s) return '';
+    const lower = s.toLowerCase();
+    if (lower.startsWith('http://') || lower.startsWith('https://') || lower.includes('youtube.com/') || lower.includes('youtu.be/')) {
+      let urlStr = s;
+      if (!/^https?:\/\//i.test(urlStr)) urlStr = 'https://' + urlStr;
+      try {
+        const u = new URL(urlStr);
+        const segs = u.pathname.split('/').filter(Boolean);
+        if (!segs.length) return '@' + s.replace(/^@/, '').replace(/\/+$/, '');
+        const first = segs[0];
+        if (first.startsWith('@')) return first;
+        if (/^(channel|c|user)$/i.test(first) && segs[1]) return first.toLowerCase() + '/' + segs[1];
+        return '@' + first.replace(/^@/, '');
+      } catch (e) {}
+    }
+    return '@' + s.replace(/^@/, '').replace(/\/+$/, '');
+  }
+  function ytLink(v) { return 'https://youtube.com/' + ytHandle(v); }
+  function waNumber(v) { return String(v || '').replace(/\D/g, ''); }
+
+  // ====== Сборка vCard в браузере (с фото) ======
+  function vcardEscape(value) {
+    if (!value) return '';
+    return String(value)
+      .replace(/\\/g, '\\\\')
+      .replace(/;/g, '\\;')
+      .replace(/,/g, '\\,')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '');
+  }
+  function vcardFold(line) {
+    if (line.length <= 75) return line;
+    const parts = [];
+    let i = 0;
+    parts.push(line.slice(i, i + 75));
+    i += 75;
+    while (i < line.length) {
+      parts.push(' ' + line.slice(i, i + 74));
+      i += 74;
+    }
+    return parts.join('\r\n');
+  }
+  function buildVCard() {
+    const lines = ['BEGIN:VCARD', 'VERSION:3.0'];
+    const fn = [card.first_name, card.last_name].filter(Boolean).join(' ');
+    lines.push('N:' + vcardEscape(card.last_name) + ';' + vcardEscape(card.first_name) + ';;;');
+    lines.push('FN:' + vcardEscape(fn));
+    if (card.company) lines.push('ORG:' + vcardEscape(card.company));
+    if (card.position) lines.push('TITLE:' + vcardEscape(card.position));
+    if (card.bio) lines.push('NOTE:' + vcardEscape(card.bio));
+    if (card.phone) lines.push('TEL;TYPE=CELL,VOICE:' + vcardEscape(card.phone));
+    if (card.phone_secondary) lines.push('TEL;TYPE=WORK,VOICE:' + vcardEscape(card.phone_secondary));
+    if (card.email) lines.push('EMAIL;TYPE=INTERNET:' + vcardEscape(card.email));
+    if (card.website) {
+      const site = /^https?:\/\//i.test(card.website) ? card.website : 'https://' + card.website;
+      lines.push('URL:' + vcardEscape(site));
+    }
+    if (card.address) lines.push('ADR;TYPE=WORK:;;' + vcardEscape(card.address) + ';;;;');
+    if (card.instagram) { const h = igHandle(card.instagram); if (h) lines.push('X-SOCIALPROFILE;TYPE=instagram:https://instagram.com/' + vcardEscape(h)); }
+    if (card.telegram) { const h = tgHandle(card.telegram); if (h) lines.push('X-SOCIALPROFILE;TYPE=telegram:https://t.me/' + vcardEscape(h)); }
+    if (card.linkedin) { const h = liHandle(card.linkedin); if (h) lines.push('X-SOCIALPROFILE;TYPE=linkedin:https://linkedin.com/in/' + vcardEscape(h)); }
+    if (card.whatsapp) { const n = waNumber(card.whatsapp); if (n) lines.push('X-SOCIALPROFILE;TYPE=whatsapp:https://wa.me/' + vcardEscape(n)); }
+    if (card.facebook) { const h = fbHandle(card.facebook); if (h) lines.push('X-SOCIALPROFILE;TYPE=facebook:https://facebook.com/' + vcardEscape(h)); }
+    if (card.youtube)  { const h = ytHandle(card.youtube);  if (h) lines.push('X-SOCIALPROFILE;TYPE=youtube:https://youtube.com/' + vcardEscape(h)); }
+    if (card.tiktok)   { const h = tkHandle(card.tiktok);   if (h) lines.push('X-SOCIALPROFILE;TYPE=tiktok:https://tiktok.com/@' + vcardEscape(h)); }
+    if (card.slug) lines.push('URL;TYPE=profile:' + vcardEscape(window.location.origin) + '/' + vcardEscape(card.slug));
+    if (card.avatar_url) {
+      const m = /^data:image\/([a-zA-Z]+)(?:;[^,]*)?;base64,(.+)$/.exec(card.avatar_url);
+      if (m) {
+        let type = m[1];
+        if (/^jpe?g$/i.test(type)) type = 'JPEG'; else type = type.toUpperCase();
+        const data = m[2].replace(/\s+/g, '');
+        lines.push(vcardFold('PHOTO;ENCODING=b;TYPE=' + type + ':' + data));
+      }
+    }
+    lines.push('REV:' + new Date().toISOString());
+    lines.push('END:VCARD');
+    return lines.join('\r\n') + '\r\n';
+  }
+
+  // ====== Кнопка "Сохранить контакт" — собираем vCard в браузере, мгновенно ======
+  // Делаем blob: URL с готовым vCard ещё до клика — телефон сохраняется моментально, без запроса на сервер.
   const saveBtn = document.getElementById('save-contact');
-  const vcardUrl = '/' + card.slug + '/vcard';
-  saveBtn.href = vcardUrl;
+  const serverVcardUrl = '/' + card.slug + '/vcard';
+  try {
+    const blob = new Blob([buildVCard()], { type: 'text/vcard;charset=utf-8' });
+    saveBtn.href = URL.createObjectURL(blob);
+  } catch (e) {
+    saveBtn.href = serverVcardUrl;
+  }
   saveBtn.setAttribute('download', card.slug + '.vcf');
 
   saveBtn.addEventListener('click', function(e) {
-    // iOS PWA в standalone не умеет download — делаем window.location
+    // iOS PWA в standalone не умеет download — используем серверный endpoint
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
     if (isStandalone) {
       e.preventDefault();
-      window.location.href = vcardUrl;
+      window.location.href = serverVcardUrl;
     }
-    showToast('Открываем контакт…');
+    showToast('Сохраняем контакт…');
   });
 
   // ====== Быстрые действия ======
@@ -429,14 +560,14 @@ h1 {
     label: 'Позвонить',
     icon: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>'
   });
-  if (card.whatsapp) quickActions.push({
-    href: 'https://wa.me/' + card.whatsapp.replace(/\D/g, ''),
+  if (card.whatsapp && waNumber(card.whatsapp)) quickActions.push({
+    href: 'https://wa.me/' + waNumber(card.whatsapp),
     label: 'WhatsApp',
     icon: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
     target: '_blank'
   });
-  if (card.telegram) quickActions.push({
-    href: 'https://t.me/' + card.telegram.replace(/^@/, ''),
+  if (card.telegram && tgHandle(card.telegram)) quickActions.push({
+    href: 'https://t.me/' + tgHandle(card.telegram),
     label: 'Telegram',
     icon: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>',
     target: '_blank'
@@ -527,48 +658,48 @@ h1 {
 
   // Соц.сети
   const socials = [];
-  if (card.instagram) socials.push({
-    href: 'https://instagram.com/' + card.instagram.replace(/^@/, ''),
-    label: 'Instagram', value: '@' + card.instagram.replace(/^@/, ''),
+  if (card.instagram) { const ig = igHandle(card.instagram); if (ig) socials.push({
+    href: 'https://instagram.com/' + ig,
+    label: 'Instagram', value: '@' + ig,
     icon: '<rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>',
     target: '_blank'
-  });
-  if (card.telegram) socials.push({
-    href: 'https://t.me/' + card.telegram.replace(/^@/, ''),
-    label: 'Telegram', value: '@' + card.telegram.replace(/^@/, ''),
+  }); }
+  if (card.telegram) { const tg = tgHandle(card.telegram); if (tg) socials.push({
+    href: 'https://t.me/' + tg,
+    label: 'Telegram', value: '@' + tg,
     icon: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>',
     target: '_blank'
-  });
-  if (card.whatsapp) socials.push({
-    href: 'https://wa.me/' + card.whatsapp.replace(/\D/g, ''),
+  }); }
+  if (card.whatsapp) { const wa = waNumber(card.whatsapp); if (wa) socials.push({
+    href: 'https://wa.me/' + wa,
     label: 'WhatsApp', value: card.whatsapp,
     icon: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
     target: '_blank'
-  });
-  if (card.linkedin) socials.push({
-    href: card.linkedin.startsWith('http') ? card.linkedin : 'https://linkedin.com/in/' + card.linkedin,
-    label: 'LinkedIn', value: card.linkedin.replace(/^https?:\/\/(www\.)?linkedin\.com\/(in\/)?/, ''),
+  }); }
+  if (card.linkedin) { const li = liHandle(card.linkedin); if (li) socials.push({
+    href: 'https://linkedin.com/in/' + li,
+    label: 'LinkedIn', value: li,
     icon: '<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>',
     target: '_blank'
-  });
-  if (card.facebook) socials.push({
-    href: card.facebook.startsWith('http') ? card.facebook : 'https://facebook.com/' + card.facebook,
-    label: 'Facebook', value: card.facebook.replace(/^https?:\/\/(www\.)?facebook\.com\//, ''),
+  }); }
+  if (card.facebook) { const fb = fbHandle(card.facebook); if (fb) socials.push({
+    href: 'https://facebook.com/' + fb,
+    label: 'Facebook', value: fb,
     icon: '<path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>',
     target: '_blank'
-  });
-  if (card.youtube) socials.push({
-    href: card.youtube.startsWith('http') ? card.youtube : 'https://youtube.com/@' + card.youtube.replace(/^@/, ''),
-    label: 'YouTube', value: '@' + card.youtube.replace(/^@/, ''),
+  }); }
+  if (card.youtube) { const yt = ytHandle(card.youtube); if (yt) socials.push({
+    href: ytLink(card.youtube),
+    label: 'YouTube', value: yt.startsWith('@') ? yt : '@' + yt,
     icon: '<path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/>',
     target: '_blank'
-  });
-  if (card.tiktok) socials.push({
-    href: 'https://tiktok.com/@' + card.tiktok.replace(/^@/, ''),
-    label: 'TikTok', value: '@' + card.tiktok.replace(/^@/, ''),
+  }); }
+  if (card.tiktok) { const tk = tkHandle(card.tiktok); if (tk) socials.push({
+    href: 'https://tiktok.com/@' + tk,
+    label: 'TikTok', value: '@' + tk,
     icon: '<path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/>',
     target: '_blank'
-  });
+  }); }
   if (socials.length) {
     const s = sectionBlock('Соц.сети');
     socials.forEach(r => s.appendChild(itemRow(r)));
