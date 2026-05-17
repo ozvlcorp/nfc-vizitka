@@ -1,9 +1,17 @@
 const serverless = require('serverless-http');
 const app = require('../server');
 
-const serverlessHandler = serverless(app);
+const serverlessHandler = serverless(app, {
+    binary: [
+          'image/*',
+          'application/octet-stream',
+          'application/pdf',
+          'font/*',
+          'application/font-*',
+        ],
+});
 
 module.exports.handler = async (event, context) => {
-  await app.bootstrapDone;
-  return serverlessHandler(event, context);
+    await app.bootstrapDone;
+    return serverlessHandler(event, context);
 };
