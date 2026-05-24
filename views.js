@@ -540,6 +540,11 @@ function renderForm(card) {
         </div>
       </div>\` : ''}
 
+      \${!isNew ? \`<div class="form-section">
+        <h3>Лиды <span id="leads-count" style="color:var(--fg-mute);font-weight:400;text-transform:none;letter-spacing:0;font-size:12px;margin-left:6px;"></span></h3>
+        <div id="leads-list" style="font-size:14px;color:var(--fg-dim);">Загружаем…</div>
+      </div>\` : ''}
+
       <div class="actions-row">
         <button type="submit" class="btn btn-primary">\${isNew ? 'Создать визитку' : 'Сохранить'}</button>
         \${!isNew ? \`<button type="button" class="btn btn-danger" id="delete-btn">Удалить</button>\` : ''}
@@ -632,6 +637,50 @@ function attachFormHandlers(isNew) {
         toast('Ошибка удаления', 'error');
       }
     });
+  }
+
+  // Лиды
+  const leadsListEl = document.getElementById('leads-list');
+  const leadsCountEl = document.getElementById('leads-count');
+  if (leadsListEl && currentSlug) {
+    fetch('/api/cards/' + currentSlug + '/leads', { headers: { 'Accept': 'application/json' } })
+      .then(r => r.ok ? r.json() : Promise.reject(r))
+      .then(rows => {
+        if (!rows.length) {
+          leadsListEl.innerHTML = '<div style="padding:12px 0;color:var(--fg-mute);">Пока никто не оставил контакт.</div>';
+          leadsCountEl.textContent = '';
+          return;
+        }
+        leadsCountEl.textContent = '(' + rows.length + ')';
+        leadsListEl.innerHTML = rows.map(l => {
+          const dt = new Date(l.created_at + 'Z').toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+          const ua = (l.user_agent || '').match(/iPhone|iPad|iPod/i) ? 'iOS'
+            : (l.user_agent || '').match(/Android/i) ? 'Android'
+            : 'Web';
+          const phoneDigits = String(l.phone || '').replace(/\\D/g, '');
+          return \`<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;background:var(--bg-2);margin-bottom:6px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;color:var(--fg);">\${escape(l.name)}</div>
+              <div style="font-size:13px;color:var(--fg-dim);">
+                <a href="tel:\${escape(l.phone)}" style="color:var(--accent);text-decoration:none;">\${escape(l.phone)}</a>
+                <span style="color:var(--fg-mute);"> · \${dt} · \${ua}\${l.country ? ' · ' + escape(l.country) : ''}</span>
+              </div>
+            </div>
+            <a href="https://wa.me/\${phoneDigits}" target="_blank" title="WhatsApp" style="color:var(--fg-mute);text-decoration:none;font-size:18px;">💬</a>
+            <button type="button" data-lead-id="\${l.id}" class="lead-del-btn" title="Удалить" style="background:transparent;border:none;color:var(--fg-mute);cursor:pointer;font-size:16px;padding:4px 8px;">✕</button>
+          </div>\`;
+        }).join('');
+        leadsListEl.querySelectorAll('.lead-del-btn').forEach(b => {
+          b.addEventListener('click', async () => {
+            if (!confirm('Удалить этот лид?')) return;
+            const id = b.dataset.leadId;
+            const r = await fetch('/api/leads/' + id, { method: 'DELETE' });
+            if (r.ok) { openCard(currentSlug); toast('Лид удалён', 'success'); }
+            else toast('Ошибка', 'error');
+          });
+        });
+      })
+      .catch(() => { leadsListEl.innerHTML = '<div style="color:var(--fg-mute);">Не удалось загрузить лиды.</div>'; });
   }
 
   // Сабмит формы
@@ -981,6 +1030,97 @@ h1 {
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
 
+/* Lead modal */
+.lead-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 300;
+  padding: 16px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0) + 16px);
+}
+.lead-modal.show { display: flex; }
+.lead-modal-box {
+  background: var(--bg-2);
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  padding: 24px 20px 20px;
+  width: 100%;
+  max-width: 420px;
+  position: relative;
+  animation: slideUp 0.3s ease;
+}
+@media (min-width: 540px) {
+  .lead-modal { align-items: center; }
+}
+.lead-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--fg-mute);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+.lead-modal-close:hover { color: var(--fg); background: rgba(255,255,255,0.06); }
+.lead-modal h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.lead-modal p {
+  color: var(--fg-dim);
+  font-size: 14px;
+  margin: 0 0 18px;
+  line-height: 1.4;
+}
+.lead-field { margin-bottom: 12px; }
+.lead-field label {
+  display: block;
+  font-size: 12px;
+  color: var(--fg-mute);
+  margin-bottom: 4px;
+}
+.lead-field input {
+  width: 100%;
+  padding: 13px 14px;
+  background: var(--bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  color: var(--fg);
+  font-size: 15px;
+  font-family: inherit;
+}
+.lead-field input:focus { outline: none; border-color: var(--accent); }
+.lead-submit {
+  width: 100%;
+  padding: 14px;
+  margin-top: 6px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.lead-submit:disabled { opacity: 0.6; cursor: wait; }
+.lead-error {
+  font-size: 13px;
+  color: #ff7575;
+  margin-top: 6px;
+  min-height: 18px;
+}
+
 @media (max-width: 380px) {
   .wrap { padding: 20px 16px; }
   .actions { grid-template-columns: repeat(4, 1fr); gap: 8px; }
@@ -1053,6 +1193,27 @@ h1 {
   </div>
   <button class="pwa-banner-btn" id="pwa-install">Установить</button>
   <button class="pwa-banner-close" id="pwa-close" aria-label="Закрыть">×</button>
+</div>
+
+<!-- Lead capture modal -->
+<div class="lead-modal" id="lead-modal" role="dialog" aria-modal="true" aria-labelledby="lead-title">
+  <div class="lead-modal-box">
+    <button type="button" class="lead-modal-close" id="lead-close" aria-label="Закрыть">×</button>
+    <h2 id="lead-title">Оставьте свой контакт</h2>
+    <p id="lead-subtitle">Чтобы владелец визитки мог связаться с вами в ответ.</p>
+    <form id="lead-form" novalidate>
+      <div class="lead-field">
+        <label for="lead-name">Ваше имя</label>
+        <input type="text" id="lead-name" name="name" autocomplete="name" required maxlength="120" placeholder="Например, Алексей">
+      </div>
+      <div class="lead-field">
+        <label for="lead-phone">Телефон</label>
+        <input type="tel" id="lead-phone" name="phone" autocomplete="tel" required maxlength="32" inputmode="tel" placeholder="+998 90 123 45 67">
+      </div>
+      <button type="submit" class="lead-submit" id="lead-submit">Отправить</button>
+      <div class="lead-error" id="lead-error"></div>
+    </form>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1237,6 +1398,89 @@ h1 {
       window.location.href = serverVcardUrl;
     }
     showToast('Сохраняем контакт…');
+    maybeShowLeadModal();
+  });
+
+  // ====== Lead capture ======
+  function getVisitorId() {
+    try {
+      let id = localStorage.getItem('cnct-visitor-id');
+      if (!id) {
+        id = (crypto && crypto.randomUUID) ? crypto.randomUUID()
+          : (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+        localStorage.setItem('cnct-visitor-id', id);
+      }
+      return id;
+    } catch (_) { return ''; }
+  }
+  const leadSubmittedKey = 'cnct-lead-submitted-' + card.slug;
+  const leadDismissedKey = 'cnct-lead-dismissed-' + card.slug;
+  const leadModal = document.getElementById('lead-modal');
+  const leadForm = document.getElementById('lead-form');
+  const leadCloseBtn = document.getElementById('lead-close');
+  const leadSubmitBtn = document.getElementById('lead-submit');
+  const leadErrorEl = document.getElementById('lead-error');
+  const leadNameInput = document.getElementById('lead-name');
+  const leadPhoneInput = document.getElementById('lead-phone');
+  const leadSubtitle = document.getElementById('lead-subtitle');
+  if (card.first_name) {
+    leadSubtitle.textContent = 'Чтобы ' + card.first_name + ' мог связаться с вами в ответ.';
+  }
+
+  let leadModalShown = false;
+  function maybeShowLeadModal() {
+    if (leadModalShown) return;
+    try {
+      if (localStorage.getItem(leadSubmittedKey)) return;
+      if (sessionStorage.getItem(leadDismissedKey)) return;
+    } catch (_) {}
+    leadModalShown = true;
+    setTimeout(() => {
+      leadModal.classList.add('show');
+      setTimeout(() => leadNameInput.focus(), 200);
+    }, 1400);
+  }
+  function hideLeadModal() {
+    leadModal.classList.remove('show');
+  }
+  leadCloseBtn.addEventListener('click', () => {
+    hideLeadModal();
+    try { sessionStorage.setItem(leadDismissedKey, '1'); } catch (_) {}
+  });
+  leadModal.addEventListener('click', (e) => {
+    if (e.target === leadModal) {
+      hideLeadModal();
+      try { sessionStorage.setItem(leadDismissedKey, '1'); } catch (_) {}
+    }
+  });
+
+  leadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    leadErrorEl.textContent = '';
+    const name = leadNameInput.value.trim();
+    const phone = leadPhoneInput.value.trim();
+    if (name.length < 2) { leadErrorEl.textContent = 'Введите имя'; leadNameInput.focus(); return; }
+    if (phone.replace(/\\D/g, '').length < 7) { leadErrorEl.textContent = 'Введите корректный номер'; leadPhoneInput.focus(); return; }
+
+    leadSubmitBtn.disabled = true;
+    leadSubmitBtn.textContent = 'Отправляем…';
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: card.slug, name, phone, visitor_id: getVisitorId() })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Не удалось отправить');
+      try { localStorage.setItem(leadSubmittedKey, '1'); } catch (_) {}
+      hideLeadModal();
+      showToast('Спасибо! Контакт отправлен.');
+    } catch (err) {
+      leadErrorEl.textContent = err.message || 'Ошибка отправки';
+    } finally {
+      leadSubmitBtn.disabled = false;
+      leadSubmitBtn.textContent = 'Отправить';
+    }
   });
 
   // ====== Быстрые действия ======

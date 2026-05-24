@@ -63,7 +63,25 @@ async function initDb() {
 
     // Index
     await client.execute(`CREATE INDEX IF NOT EXISTS idx_cards_slug ON cards(slug);`);
-    
+
+    // Leads (захваченные контакты посетителей визиток)
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS leads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        card_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        visitor_id TEXT,
+        user_agent TEXT,
+        ip TEXT,
+        country TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE
+      );
+    `);
+    await client.execute(`CREATE INDEX IF NOT EXISTS idx_leads_card_id ON leads(card_id);`);
+    await client.execute(`CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at);`);
+
     console.log('[DB] Initialization complete');
   } catch (err) {
     console.error('[DB] Initialization error:', err);

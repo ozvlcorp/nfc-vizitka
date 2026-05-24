@@ -328,6 +328,87 @@ app.delete('/api/cards/:slug', requireAdmin, async (req, res) => {
 });
 
 // ======================
+// Лиды — захват контактов гостей визитки
+// ======================
+
+// Публичный эндпоинт: гость оставляет имя+телефон. Без авторизации (но с базовой валидацией).
+app.post('/api/leads', async (req, res) => {
+  try {
+    const { slug, name, phone, visitor_id } = req.body || {};
+    if (!slug || !name || !phone) {
+      return res.status(400).json({ error: 'slug, name и phone обязательны' });
+    }
+    // Минимальная нормализация
+    const cleanName = String(name).trim().slice(0, 120);
+    const cleanPhone = String(phone).trim().slice(0, 32);
+    if (cleanName.length < 2) return res.status(400).json({ error: 'name слишком короткое' });
+    const digits = cleanPhone.replace(/\D/g, '');
+    if (digits.length < 7) return res.status(400).json({ error: 'phone слишком короткий' });
+
+    const cardRes = await db.client.execute({
+      sql: 'SELECT id FROM cards WHERE slug = ? AND is_active = 1',
+      args: [String(slug).toLowerCase()]
+    });
+    const card = cardRes.rows[0];
+    if (!card) return res.status(404).json({ error: 'card not found' });
+
+    const ua = (req.headers['user-agent'] || '').slice(0, 500);
+    const ip = (req.headers['x-nf-client-connection-ip'] || req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim().slice(0, 64);
+    // Netlify передаёт страну в заголовке x-country / x-nf-geo (JSON). Достаём страну если есть.
+    let country = (req.headers['x-country'] || '').toString().slice(0, 8);
+    if (!country && req.headers['x-nf-geo']) {
+      try {
+        const geo = JSON.parse(req.headers['x-nf-geo']);
+        country = (geo && geo.country && geo.country.code) ? geo.country.code : '';
+      } catch (_) {}
+    }
+
+    await db.client.execute({
+      sql: `INSERT INTO leads (card_id, name, phone, visitor_id, user_agent, ip, country) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [card.id, cleanName, cleanPhone, String(visitor_id || '').slice(0, 64) || null, ua || null, ip || null, country || null]
+    });
+
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    console.error('[LEAD ERROR]', err.message);
+    res.status(500).json({ error: 'server error' });
+  }
+});
+
+// Админский эндпоинт: список лидов по визитке
+app.get('/api/cards/:slug/leads', requireAdmin, async (req, res) => {
+  try {
+    const cardRes = await db.client.execute({
+      sql: 'SELECT id FROM cards WHERE slug = ?',
+      args: [req.params.slug.toLowerCase()]
+    });
+    const card = cardRes.rows[0];
+    if (!card) return res.status(404).json({ error: 'not_found' });
+
+    const leadsRes = await db.client.execute({
+      sql: 'SELECT id, name, phone, country, user_agent, created_at FROM leads WHERE card_id = ? ORDER BY created_at DESC LIMIT 200',
+      args: [card.id]
+    });
+    res.json(leadsRes.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Админский эндпоинт: удалить лид
+app.delete('/api/leads/:id', requireAdmin, async (req, res) => {
+  try {
+    await db.client.execute({
+      sql: 'DELETE FROM leads WHERE id = ?',
+      args: [req.params.id]
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ======================
 // PWA: динамический манифест для каждой визитки
 // ======================
 app.get('/:slug/manifest.json', async (req, res) => {
